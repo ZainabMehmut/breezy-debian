@@ -299,3 +299,24 @@ class RemoteAptEnterTests(TestCase):
         self.assertIsNone(remote.cache)
         self.assertIsNone(remote._rootdir)
         self.assertFalse(os.path.isdir(rootdirs[0]))
+
+    def test_creates_trusted_gpg_d(self):
+        import apt
+        import apt_pkg
+
+        calls = []
+        rootdirs = []
+
+        def make_cache(rootdir=None):
+            rootdirs.append(rootdir)
+            return MockAptCache(calls)
+
+        apt_pkg.init()
+        self.addCleanup(apt_pkg.config.set, "Dir", apt_pkg.config.find("Dir"))
+        self.overrideAttr(apt, "Cache", make_cache)
+        remote = RemoteApt("http://example.com/debian", "sid", ["main"])
+
+        with remote:
+            self.assertTrue(
+                os.path.isdir(os.path.join(rootdirs[0], "etc", "apt", "trusted.gpg.d"))
+            )
