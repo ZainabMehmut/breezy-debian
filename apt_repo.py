@@ -82,6 +82,7 @@ _apt_semaphore = Semaphore()
 class LocalApt(Apt):
     def __init__(self, rootdir=None):
         self.apt_pkg = None
+        self.cache = None
         self._rootdir = rootdir
 
     def __repr__(self):
@@ -215,6 +216,7 @@ class RemoteApt(LocalApt):
         self.distribution = distribution
         self.components = components
         self.key_path = key_path
+        self.cache = None
         self._rootdir = None
 
     def __repr__(self):
@@ -277,7 +279,8 @@ class RemoteApt(LocalApt):
         if self.cache is not None:
             self.cache.close()
             self.cache = None
-        shutil.rmtree(self._rootdir)
+        if self._rootdir is not None:
+            shutil.rmtree(self._rootdir)
         return False
 
     @classmethod

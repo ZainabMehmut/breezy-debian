@@ -228,3 +228,28 @@ class RemoteAptExitTests(TestCase):
 
         self.assertEqual(["close", ("rmtree", "/nonexistent/rootdir")], calls)
         self.assertIsNone(remote.cache)
+
+    def test_exit_without_enter(self):
+        # breezyshim's RemoteApt::drop calls __exit__ blind, so __exit__ has to
+        # cope with __enter__ never having run.
+        calls = []
+        remote = RemoteApt("http://example.com/debian", "sid", ["main"])
+        remote._rootdir = "/nonexistent/rootdir"
+        self.overrideAttr(shutil, "rmtree", lambda path: calls.append(("rmtree", path)))
+
+        remote.__exit__(None, None, None)
+
+        self.assertEqual([("rmtree", "/nonexistent/rootdir")], calls)
+
+    def test_exit_without_rootdir(self):
+        calls = []
+        remote = RemoteApt("http://example.com/debian", "sid", ["main"])
+        self.overrideAttr(shutil, "rmtree", lambda path: calls.append(("rmtree", path)))
+
+        remote.__exit__(None, None, None)
+
+        self.assertEqual([], calls)
+
+    def test_cache_is_none_before_enter(self):
+        self.assertIsNone(LocalApt().cache)
+        self.assertIsNone(RemoteApt("http://example.com/debian", "sid", ["main"]).cache)
