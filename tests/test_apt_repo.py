@@ -18,6 +18,7 @@
 #    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
+import os
 import shutil
 
 from breezy.tests import TestCase
@@ -118,10 +119,16 @@ class MockAptCaller:
 
 
 class MockAptCache:
-    def __init__(self, calls, close_error=None):
+    def __init__(self, calls, close_error=None, update_error=None):
         self.close_called_times = 0
         self._calls = calls
         self._close_error = close_error
+        self._update_error = update_error
+
+    def update(self):
+        self._calls.append("update")
+        if self._update_error is not None:
+            raise self._update_error
 
     def close(self):
         self.close_called_times += 1
@@ -267,3 +274,28 @@ class RemoteAptExitTests(TestCase):
         self.assertRaises(RuntimeError, remote.__exit__, None, None, None)
 
         self.assertEqual(["close", ("rmtree", "/nonexistent/rootdir")], calls)
+
+
+class RemoteAptEnterTests(TestCase):
+    def test_cleans_up_when_update_fails(self):
+        import apt
+        import apt_pkg
+
+        calls = []
+        rootdirs = []
+
+        def make_cache(rootdir=None):
+            rootdirs.append(rootdir)
+            return MockAptCache(calls, update_error=RuntimeError("mirror down"))
+
+        apt_pkg.init()
+        self.addCleanup(apt_pkg.config.set, "Dir", apt_pkg.config.find("Dir"))
+        self.overrideAttr(apt, "Cache", make_cache)
+        remote = RemoteApt("http://example.com/debian", "sid", ["main"])
+
+        self.assertRaises(RuntimeError, remote.__enter__)
+
+        self.assertEqual(["update", "close"], calls)
+        self.assertIsNone(remote.cache)
+        self.assertIsNone(remote._rootdir)
+        self.assertFalse(os.path.isdir(rootdirs[0]))
