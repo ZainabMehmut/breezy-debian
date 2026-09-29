@@ -276,11 +276,13 @@ class RemoteApt(LocalApt):
 
     def __exit__(self, exc_tp, exc_val, exc_tb):
         # Release apt's fds before removing the tree
-        if self.cache is not None:
-            self.cache.close()
-            self.cache = None
-        if self._rootdir is not None:
-            shutil.rmtree(self._rootdir)
+        try:
+            if self.cache is not None:
+                self.cache.close()
+                self.cache = None
+        finally:
+            if self._rootdir is not None:
+                shutil.rmtree(self._rootdir)
         return False
 
     @classmethod

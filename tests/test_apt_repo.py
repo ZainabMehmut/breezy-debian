@@ -118,13 +118,16 @@ class MockAptCaller:
 
 
 class MockAptCache:
-    def __init__(self, calls):
+    def __init__(self, calls, close_error=None):
         self.close_called_times = 0
         self._calls = calls
+        self._close_error = close_error
 
     def close(self):
         self.close_called_times += 1
         self._calls.append("close")
+        if self._close_error is not None:
+            raise self._close_error
 
 
 class LocalAptTests(TestCase):
@@ -253,3 +256,14 @@ class RemoteAptExitTests(TestCase):
     def test_cache_is_none_before_enter(self):
         self.assertIsNone(LocalApt().cache)
         self.assertIsNone(RemoteApt("http://example.com/debian", "sid", ["main"]).cache)
+
+    def test_removes_rootdir_when_close_raises(self):
+        calls = []
+        remote = RemoteApt("http://example.com/debian", "sid", ["main"])
+        remote._rootdir = "/nonexistent/rootdir"
+        remote.cache = MockAptCache(calls, close_error=RuntimeError("apt_pkg"))
+        self.overrideAttr(shutil, "rmtree", lambda path: calls.append(("rmtree", path)))
+
+        self.assertRaises(RuntimeError, remote.__exit__, None, None, None)
+
+        self.assertEqual(["close", ("rmtree", "/nonexistent/rootdir")], calls)
